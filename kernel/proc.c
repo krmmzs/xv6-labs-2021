@@ -141,6 +141,8 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->trace_mask = 0; // When creating a new process, attach a default value of 0 to the newly added trace_mask
+
   return p;
 }
 
