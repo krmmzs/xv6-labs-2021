@@ -99,8 +99,10 @@ sys_uptime(void)
 // sys_trace() function
 uint64 sys_trace(void) {
     int mask;
+    // Obtain the mask parameter by reading the trapframe of the process
     if (argint(0, &mask) < 0)
         return -1;
+    // Set the trace mask of the process to the mask parameter
     myproc()->trace_mask = mask;
     return 0;
 }
