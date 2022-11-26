@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -108,5 +109,18 @@ uint64 sys_trace(void) {
 }
 
 uint64 sys_sysinfo(void) {
+    // Obtain the dst(user) virtual address
+    uint64 sysinfop;
+    // get address from a0
+    if (argaddr(0, &sysinfop) < 0) {
+        return -1;
+    }
+    // Obtain the info parameter by reading the trapframe of the process
+    struct sysinfo sinfo;
+    sinfo.freemem = get_freemem(); // kalloc.c
+    sinfo.nproc = get_nproc(); // proc.c
+    // copy out the sysinfo struct sinfo from kernel space to user space
+    if(copyout(myproc()->pagetable, sysinfop, (char *)&sinfo, sizeof(sinfo)) < 0)
+      return -1;
     return 0;
 }

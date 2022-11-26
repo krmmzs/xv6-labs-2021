@@ -659,3 +659,18 @@ procdump(void)
     printf("\n");
   }
 }
+
+
+uint64 get_nproc() {
+    // check the state of the process
+    // count UNUSED state process
+    uint64 nproc = 0;
+    int i;
+    for (i = 0; i < NPROC; i ++) {
+        if (proc[i].state != UNUSED) {
+            nproc ++;
+        }
+    }
+
+    return nproc;
+}

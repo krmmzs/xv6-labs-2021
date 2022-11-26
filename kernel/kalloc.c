@@ -81,7 +81,18 @@ kalloc(void)
   return (void*)r;
 }
 
-uint64
-count_free_mem(void) {
 
+uint64 get_freemem(void) {
+    // Memory management structures must be locked first 
+    // to prevent race conditions from occurring
+    acquire(&kmem.lock);
+    uint64 freemem_bytes = 0;
+    struct run *r = kmem.freelist;
+    while (r) {
+        freemem_bytes += PGSIZE;
+        r = r->next;
+    }
+    release(&kmem.lock);
+
+    return freemem_bytes;
 }
