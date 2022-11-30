@@ -2,6 +2,7 @@
 compile_commands.json
 .ccls
 .ccls-cache
+.cache
 *~
 _*
 *.o
