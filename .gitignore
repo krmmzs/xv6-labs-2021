@@ -1,3 +1,5 @@
+.root
+compile_commands.json
 .ccls
 .ccls-cache
 *~
