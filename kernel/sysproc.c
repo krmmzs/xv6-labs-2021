@@ -77,11 +77,44 @@ sys_sleep(void)
 
 
 #ifdef LAB_PGTBL
-int
-sys_pgaccess(void)
+int sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
-  return 0;
+    // parse arguments
+    uint64 va;
+    int n;
+    uint64 dstva; // a user address to a buffer 
+    if (argaddr(0, &va) < 0) return -1;
+    if (argint(1, &n) < 0) return -1;
+    if (argaddr(2, &dstva) < 0) return -1;
+
+    pagetable_t pagetable = myproc()->pagetable;
+    uint32 buf = 0;
+    pte_t *pte;
+
+    for (int i = 0; i < MAXSCAN && i < n; i ++) {
+        uint64 va_t = va + i * PGSIZE;
+        if (va > MAXVA) return -1;
+
+        pte = walk(pagetable, va_t, 0);
+        if ((*pte & PTE_V) == 0) {
+            return -1;
+        }
+        if ((*pte & PTE_U) == 0) {
+            return -1;
+        }
+        if (*pte & PTE_A) {
+            // clear PTE_A after checking if it is set. 
+            *pte &= ~PTE_A;
+            // set the corresponding bit in the buffer
+            buf |= (1 << i);
+        }
+    }
+    // copy it to the user
+    if (copyout(pagetable, dstva, (char *)&buf, sizeof(buf))) {
+        return -1;
+    }
+
+    return 0;
 }
 #endif
 

@@ -1,4 +1,3 @@
-#define LAB_PGTBL
 #include "types.h"
 #include "param.h"
 #include "memlayout.h"
