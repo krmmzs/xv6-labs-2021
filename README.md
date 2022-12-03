@@ -4,7 +4,7 @@
 
 -   [x]  [Lab util: Unix utilities]()
 -   [x]  [Lab syscall: System calls]()
--   [ ]  [Lab pgtbl: Page tables]()
+-   [x]  [Lab pgtbl: Page tables]()
 -   [ ]  [Lab traps: Trap]()
 -   [ ]  [Lab lazy: Lazy allocation]()
 -   [ ]  [Lab cow: Copy-on-write fork]()
