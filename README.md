@@ -5,7 +5,7 @@
 -   [x]  [Lab util: Unix utilities]()
 -   [x]  [Lab syscall: System calls]()
 -   [x]  [Lab pgtbl: Page tables]()
--   [ ]  [Lab traps: Trap]()
+-   [x]  [Lab traps: Trap]()
 -   [ ]  [Lab cow: Copy-on-write fork]()
 -   [ ]  [Lab thread: Multithreading]()
 -   [ ]  [Lab net: Network driver]()
