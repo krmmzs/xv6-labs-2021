@@ -1,0 +1,35 @@
+1. a0-a7, a2
+2. In the c code, main call f, f call g.but in the assembly code , the compiler **inline** this f function to optimize the code,
+so `26:	45b1  li  a1,12` get 12 directly.
+3. `0000000000000628 <printf>:`
+4. `38:	4501   li  a0,0`  , the next assembly code address in main function.
+5.
+❯ bat temp.c
+───────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+       │ File: temp.c
+───────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1   │ #include <stdio.h>
+   2   │
+   3   │ int main(void) {
+   4   │     unsigned int i = 0x00646c72;
+   5   │     printf("H%x Wo%s", 57616, &i);
+   6   │
+   7   │     return 0;
+   8   │ }
+───────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ ./temp
+He110 World%
+
+57616 = 14 * 16 ^ 3 + 16 ^ 2 + 16 ^ 1 + 16 ^ 0 -> e110
+Ascii table (bytes to characters):
+0x72 -> r
+0x6c -> l
+0x64 -> d
+0x00 -> null
+
+need't modify 57676, i need modify to `unsigned int i = 0x726c6400`
+
+6. This value corresponds to register a2, which may change during operation. 
+This is because printf tries to read more arguments than the number of arguments provided.
+The second argument, `3`, is passed through a1, while the register corresponding to the third argument, a2, will not be set to any specific value before the call, but will
+contains any values that were already in there before the call occurred.

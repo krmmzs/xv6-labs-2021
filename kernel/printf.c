@@ -121,6 +121,7 @@ panic(char *s)
   printf("panic: ");
   printf(s);
   printf("\n");
+  backtrace();
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
@@ -131,4 +132,20 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+void backtrace(void) {
+    uint64 fp = r_fp(); // read frame pointer
+    // PGROUNDUP and PGROUNDDOWN to get the page edges.
+    uint64 top = PGROUNDUP(fp);
+    uint64 bottom = PGROUNDDOWN(fp);
+
+    printf("backtrace:\n");
+    // Xv6 allocates one page for each stack in the xv6 kernel at PAGE-aligned address.
+    // Determine if the current fp address is still located on this page
+    while (fp > bottom && fp < top) {
+        uint64 ra = *(uint64*)(fp - 8); // fp - 8 mearns fp minus 8 bytes
+        fp = *(uint64*)(fp - 16);
+        printf("%p\n", ra);
+    }
 }
