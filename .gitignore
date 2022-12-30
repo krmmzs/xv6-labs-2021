@@ -1,3 +1,6 @@
+.cache
+.ccls*
+compile_commands.json
 *~
 _*
 *.o
