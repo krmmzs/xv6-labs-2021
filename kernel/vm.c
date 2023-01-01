@@ -311,6 +311,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz) {
         pa = PTE2PA(*pte);
         flags = PTE_FLAGS(*pte);
 
+        // TODO: Think about whether you really need the page to be writable before you copy it
         // only check for writable pages
         if(flags & PTE_W) {
             // ban write and set COW flag
@@ -319,13 +320,18 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz) {
         }
 
         if(mappages(new, i, PGSIZE, pa, flags) != 0) {
-            uvmunmap(new, 0, i / PGSIZE, 1);
-            return -1;
+            // The original kfree() is not needed,
+            // as all that is done here is a shallow copy
+            goto err;
         }
         // increment reference count for physical address
         kaddrefcnt((char*)pa);
     }
     return 0;
+
+err:
+    uvmunmap(new, 0, i / PGSIZE, 1);
+    return -1;
 }
 
 // mark a PTE invalid for user access.

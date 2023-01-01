@@ -31,9 +31,9 @@ struct ref_struct {
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
-  initlock(&ref.lock, "ref");
-  freerange(end, (void*)PHYSTOP);
+    initlock(&kmem.lock, "kmem");
+    initlock(&ref.lock, "ref"); // init ref lock
+    freerange(end, (void*)PHYSTOP);
 }
 
 void
