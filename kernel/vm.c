@@ -298,33 +298,34 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
 int
-uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
-{
-  pte_t *pte;
-  uint64 pa, i;
-  uint flags;
-  char *mem;
+uvmcopy(pagetable_t old, pagetable_t new, uint64 sz) {
+    pte_t *pte;
+    uint64 pa, i;
+    uint flags;
 
-  for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
-    pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
+    for(i = 0; i < sz; i += PGSIZE){
+        if((pte = walk(old, i, 0)) == 0)
+            panic("uvmcopy: pte should exist");
+        if((*pte & PTE_V) == 0)
+            panic("uvmcopy: page not present");
+        pa = PTE2PA(*pte);
+        flags = PTE_FLAGS(*pte);
+
+        // only check for writable pages
+        if(flags & PTE_W) {
+            // ban write and set COW flag
+            flags = (flags | PTE_COW) & ~PTE_W;
+            *pte = PA2PTE(pa) | flags;
+        }
+
+        if(mappages(new, i, PGSIZE, pa, flags) != 0) {
+            uvmunmap(new, 0, i / PGSIZE, 1);
+            return -1;
+        }
+        // increment reference count for physical address
+        kaddrefcnt((char*)pa);
     }
-  }
-  return 0;
-
- err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
-  return -1;
+    return 0;
 }
 
 // mark a PTE invalid for user access.
@@ -346,23 +347,28 @@ uvmclear(pagetable_t pagetable, uint64 va)
 int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
-  uint64 n, va0, pa0;
+    uint64 n, va0, pa0;
 
-  while(len > 0){
-    va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
-    n = PGSIZE - (dstva - va0);
-    if(n > len)
-      n = len;
-    memmove((void *)(pa0 + (dstva - va0)), src, n);
+    while(len > 0){
+        va0 = PGROUNDDOWN(dstva);
+        pa0 = walkaddr(pagetable, va0);
+        // copyout will copyout directly the physical address to user address,
+        // can't trigger page fault,
+        // so we need call cow function by hand.
+        if (uvmcheckcowpage(pagetable, va0)) 
+            pa0 = (uint64)uvmcowcopy(pagetable, PGROUNDDOWN(va0));
+        if(pa0 == 0)
+            return -1;
+        n = PGSIZE - (dstva - va0);
+        if(n > len)
+            n = len;
+        memmove((void *)(pa0 + (dstva - va0)), src, n);
 
-    len -= n;
-    src += n;
-    dstva = va0 + PGSIZE;
-  }
-  return 0;
+        len -= n;
+        src += n;
+        dstva = va0 + PGSIZE;
+    }
+    return 0;
 }
 
 // Copy from user to kernel.
@@ -431,4 +437,73 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+/**
+* @brief  This function is to check if it is COW page fault.
+* @param  pagetable: the page table to be used.
+* @param  va: the virtual address.
+* @retval 1 on true, 0 on false.
+*/
+int uvmcheckcowpage(pagetable_t pagetable, uint64 va) {
+    // va need check range because walk will panic
+    // but we don't want to panic here
+    if (va >= MAXVA)
+        return 0;
+    pte_t* pte = walk(pagetable, PGROUNDDOWN(va), 0);
+    return pte && (*pte & PTE_V) && (*pte & PTE_COW);
+}
+
+
+/**
+* @brief  This function is to copy the page
+* @param  pagetable: the page table to be used.
+* @param  va: the virtual address.
+* @retval address on success, 0 on failure.
+* @note   This function is called in trap.c.
+*/
+void* uvmcowcopy(pagetable_t pagetable, uint64 va) {
+    pte_t *pte;
+    uint64 pa;
+    uint flags;
+
+    // va must less than MAXVA and align to PGSIZE
+    if (va >= MAXVA || va % PGSIZE != 0) return 0;
+    if ((pte = walk(pagetable, va, 0)) == 0)
+        return 0;
+    if ((*pte & PTE_V) == 0)
+        return 0;
+
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte);
+
+    if (krefcnt((char*)pa) == 1) {
+        // just a reference to this pa
+        flags = (flags | PTE_W) & ~PTE_COW; // mark as writable and clear COW
+        *pte |= flags;
+        return (void*)pa;
+    } else {
+        // need to copy(mutiply reference to this pa)
+        // allocate a new page and copy the content
+        char* mem;
+        if ((mem = kalloc()) == 0) {
+            return 0;
+        }
+            
+        // copy the content
+        memmove(mem, (char*)pa, PGSIZE);
+
+        *pte &= ~PTE_V;
+
+        // map the new page
+        flags = (flags & ~PTE_COW) | PTE_W; // mark as writable and clear COW
+        if(mappages(pagetable, va, PGSIZE, (uint64)mem, flags)) {
+            kfree(mem);
+            return 0;
+        }
+
+        // decrease the ref count of the old page
+        kfree((char*)PGROUNDDOWN(pa));
+        return mem;
+    }
 }
