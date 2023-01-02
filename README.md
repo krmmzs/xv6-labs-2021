@@ -6,7 +6,7 @@
 -   [x]  [Lab syscall: System calls]()
 -   [x]  [Lab pgtbl: Page tables]()
 -   [x]  [Lab traps: Trap]()
--   [ ]  [Lab cow: Copy-on-write fork]()
+-   [x]  [Lab cow: Copy-on-write fork]()
 -   [ ]  [Lab thread: Multithreading]()
 -   [ ]  [Lab net: Network driver]()
 -   [ ]  [Lab lock: Parallelism/locking]()
