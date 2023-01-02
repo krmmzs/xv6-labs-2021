@@ -31,9 +31,9 @@ struct ref_struct {
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
-  initlock(&ref.lock, "ref");
-  freerange(end, (void*)PHYSTOP);
+    initlock(&kmem.lock, "kmem");
+    initlock(&ref.lock, "ref"); // init ref lock
+    freerange(end, (void*)PHYSTOP);
 }
 
 void
@@ -95,7 +95,7 @@ kalloc(void)
         kmem.freelist = r->next;
         acquire(&ref.lock);
         int index = (uint64)r / PGSIZE;
-        ref.cnt[index] = 1;
+        ref.cnt[index] = 1; // add the reference count
         release(&ref.lock);
     }
     release(&kmem.lock);
