@@ -311,9 +311,12 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz) {
         pa = PTE2PA(*pte);
         flags = PTE_FLAGS(*pte);
 
-        // ban write and set COW flag
-        flags = (flags | PTE_COW) & ~PTE_W;
-        *pte = PA2PTE(pa) | flags;
+        // just set cow in the writeable page(parent), improve efficiency.
+        if (flags & PTE_W) {
+            // ban write and set COW flag
+            flags = (flags | PTE_COW) & ~PTE_W;
+            *pte = PA2PTE(pa) | flags;
+        }
 
         if(mappages(new, i, PGSIZE, pa, flags) != 0) {
             // The original kfree() is not needed,
