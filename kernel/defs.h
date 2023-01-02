@@ -63,7 +63,7 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
-int            kaddrefcnt(void *);
+int             kaddrefcnt(void *);
 int             krefcnt(void *);
 
 // log.c

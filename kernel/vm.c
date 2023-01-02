@@ -452,7 +452,7 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 */
 int uvmcheckcowpage(pagetable_t pagetable, uint64 va) {
     // va need check range because walk will panic
-    // but we don't want to panic here
+    // but I don't want to panic here
     if (va >= MAXVA)
         return 0;
     pte_t* pte = walk(pagetable, PGROUNDDOWN(va), 0);
@@ -494,10 +494,11 @@ void* uvmcowcopy(pagetable_t pagetable, uint64 va) {
         if ((mem = kalloc()) == 0) {
             return 0;
         }
-            
+
         // copy the content
         memmove(mem, (char*)pa, PGSIZE);
 
+        // prevent mappage() panic remap
         *pte &= ~PTE_V;
 
         // map the new page

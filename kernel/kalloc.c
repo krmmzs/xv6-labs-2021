@@ -95,7 +95,7 @@ kalloc(void)
         kmem.freelist = r->next;
         acquire(&ref.lock);
         int index = (uint64)r / PGSIZE;
-        ref.cnt[index] = 1;
+        ref.cnt[index] = 1; // add the reference count
         release(&ref.lock);
     }
     release(&kmem.lock);
