@@ -311,13 +311,9 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz) {
         pa = PTE2PA(*pte);
         flags = PTE_FLAGS(*pte);
 
-        // TODO: Think about whether you really need the page to be writable before you copy it
-        // only check for writable pages
-        if(flags & PTE_W) {
-            // ban write and set COW flag
-            flags = (flags | PTE_COW) & ~PTE_W;
-            *pte = PA2PTE(pa) | flags;
-        }
+        // ban write and set COW flag
+        flags = (flags | PTE_COW) & ~PTE_W;
+        *pte = PA2PTE(pa) | flags;
 
         if(mappages(new, i, PGSIZE, pa, flags) != 0) {
             // The original kfree() is not needed,
