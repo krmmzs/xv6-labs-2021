@@ -1,0 +1,5 @@
+e->next = n;
+*p = e;
+
+will miss the case when two threads operate on the same list at the same time.
+The first thread will add the new element to the list, but the second thread will overwrite the new element with the old one.
