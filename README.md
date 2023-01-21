@@ -7,7 +7,7 @@
 -   [x]  [Lab pgtbl: Page tables]()
 -   [x]  [Lab traps: Trap]()
 -   [x]  [Lab cow: Copy-on-write fork]()
--   [ ]  [Lab thread: Multithreading]()
+-   [x]  [Lab thread: Multithreading]()
 -   [ ]  [Lab net: Network driver]()
 -   [ ]  [Lab lock: Parallelism/locking]()
 -   [ ]  [Lab fs: File system]()
