@@ -8,7 +8,7 @@
 -   [x]  [Lab traps: Trap]()
 -   [x]  [Lab cow: Copy-on-write fork]()
 -   [x]  [Lab thread: Multithreading]()
--   [ ]  [Lab net: Network driver]()
+-   [x]  [Lab net: Network driver]()
 -   [ ]  [Lab lock: Parallelism/locking]()
 -   [ ]  [Lab fs: File system]()
 -   [ ]  [Lab mmap: Mmap]()
