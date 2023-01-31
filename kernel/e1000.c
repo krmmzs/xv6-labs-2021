@@ -95,26 +95,82 @@ e1000_init(uint32 *xregs)
 int
 e1000_transmit(struct mbuf *m)
 {
-  //
-  // Your code here.
-  //
-  // the mbuf contains an ethernet frame; program it into
-  // the TX descriptor ring so that the e1000 sends it. Stash
-  // a pointer so that it can be freed after sending.
-  //
-  
-  return 0;
+    //
+    // Your code here.
+    //
+    // the mbuf contains an ethernet frame; program it into
+    // the TX descriptor ring so that the e1000 sends it. Stash
+    // a pointer so that it can be freed after sending.
+    //
+
+    acquire(&e1000_lock);
+
+    // [Head, Tail) contains all the packets that are about to sent to outside by the hardware (E1000).
+    // Tail points to the 1st already sent but not yet recycled by software (OS driver) buffers.
+    uint64 t_t = regs[E1000_TDT]; // get the tail index
+    // check if E1000_TXD_STAT_DD is not set in the descriptor indexed by E1000_TDT
+    if ((tx_ring[t_t].status & E1000_TXD_STAT_DD) == 0) {
+        release(&e1000_lock);
+        return -1;
+    }
+    struct mbuf* t = tx_mbufs[t_t];
+    // free the last mbuf that was transmitted from that descriptor (if there was one)
+    if (t) {
+        mbuffree(t);
+    }
+
+    // fill in the descriptor
+    // m->head points to the packet's content in memory.
+    // m->len is the packet length.
+    tx_ring[t_t].addr = (uint64) m->head;
+    tx_ring[t_t].length = (uint64) m->len;
+
+    // Set the necessary cmd flags
+    // RS tells the NIC to set the E1000_TXD_STAT_DD bit in status to
+    // indicate transmission completion when transmission is complete.
+    // EOP means that the buffer contains a complete packet
+    tx_ring[t_t].cmd |= E1000_TXD_CMD_RS;
+    tx_ring[t_t].cmd |= E1000_TXD_CMD_EOP;
+
+    // stash away a pointer to the mbuf for later freeing.
+    tx_mbufs[t_t] = m;
+
+    // update the ring position by adding one to E1000_TDT modulo TX_RING_SIZE.
+    regs[E1000_TDT] = (regs[E1000_TDT] + 1) % TX_RING_SIZE;
+
+    release(&e1000_lock);
+
+    return 0;
 }
 
 static void
 e1000_recv(void)
 {
-  //
-  // Your code here.
-  //
-  // Check for packets that have arrived from the e1000
-  // Create and deliver an mbuf for each packet (using net_rx()).
-  //
+    //
+    // Your code here.
+    //
+    // Check for packets that have arrived from the e1000
+    // Create and deliver an mbuf for each packet (using net_rx()).
+    //
+    while (1) {
+        uint64 r_index = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
+        if ((rx_ring[r_index].status & E1000_RXD_STAT_DD) == 0) {
+            return;
+        }
+
+        // update the mbuf's m->len to the length reported in the descriptor.
+        rx_mbufs[r_index]->len = rx_ring[r_index].length;
+        net_rx(rx_mbufs[r_index]); // Deliver the mbuf to the network stack using net_rx().
+        // Then allocate a new mbuf using mbufalloc() to replace the one just given to net_rx(). 
+        rx_mbufs[r_index] = mbufalloc(0);
+
+        // fill in the descriptor
+        rx_ring[r_index].addr = (uint64)rx_mbufs[r_index]->head; // Program its data pointer (m->head) into the descriptor. 
+        rx_ring[r_index].status = 0; // Clear the descriptor's status bits to zero.
+
+        // Finally, update the E1000_RDT register to be the index of the last ring descriptor processed.
+        regs[E1000_RDT] = r_index;
+    }
 }
 
 void
