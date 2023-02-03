@@ -9,6 +9,6 @@
 -   [x]  [Lab cow: Copy-on-write fork]()
 -   [x]  [Lab thread: Multithreading]()
 -   [x]  [Lab net: Network driver]()
--   [ ]  [Lab lock: Parallelism/locking]()
+-   [x]  [Lab lock: Parallelism/locking]()
 -   [ ]  [Lab fs: File system]()
 -   [ ]  [Lab mmap: Mmap]()
