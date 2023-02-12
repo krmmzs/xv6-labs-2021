@@ -2,13 +2,13 @@
 
 ## Progeress
 
--   [x]  [Lab util: Unix utilities]()
--   [x]  [Lab syscall: System calls]()
--   [x]  [Lab pgtbl: Page tables]()
--   [x]  [Lab traps: Trap]()
--   [x]  [Lab cow: Copy-on-write fork]()
--   [x]  [Lab thread: Multithreading]()
--   [x]  [Lab net: Network driver]()
--   [x]  [Lab lock: Parallelism/locking]()
--   [ ]  [Lab fs: File system]()
--   [ ]  [Lab mmap: Mmap]()
+-   [x]  Lab util: Unix utilities
+-   [x]  Lab syscall: System calls
+-   [x]  Lab pgtbl: Page tables
+-   [x]  Lab traps: Trap
+-   [x]  Lab cow: Copy-on-write fork
+-   [x]  Lab thread: Multithreading
+-   [x]  Lab net: Network driver
+-   [x]  Lab lock: Parallelism/locking
+-   [x]  Lab fs: File system
+-   [ ]  Lab mmap: Mmap
