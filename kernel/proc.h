@@ -1,3 +1,5 @@
+#define NVMA 16 // per proc could have 16 mmap(only file in this lab)
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -82,6 +84,18 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// VMA(Virtual Memory Areas)
+struct vma {
+    int valid;     // whether the vma is valid
+    uint64 addr;   // starting virtual address of vma
+    int len;    // length of vma, unit: bytes
+    int prot;
+    int flags;
+    int fd;     
+    int offset;    // must be zero
+    struct file *vfile;
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -105,4 +119,5 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  struct vma vmas[NVMA];       // virtual memory areas for mmap()
 };

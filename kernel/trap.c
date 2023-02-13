@@ -5,6 +5,11 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "kernel/fcntl.h"
+#include "fcntl.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -29,6 +34,51 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+int mmap_handler(int va) {
+    // Find which VMA belongs to according to the address
+    int i;
+    struct proc *p = myproc();
+    for (i = 0; i < NVMA; i ++) {
+        if (p->vmas[i].valid && p->vmas[i].addr <= va && va <= p->vmas[i].addr + p->vmas[i].len - 1) {
+            break;
+        }
+    }
+    if (i == NVMA) {
+        return -1;
+    }
+
+    int pte_flags = PTE_U;
+    if (p->vmas[i].prot & PROT_READ) pte_flags |= PTE_R;
+    if (p->vmas[i].prot & PROT_WRITE) pte_flags |= PTE_W;
+    if (p->vmas[i].prot & PROT_EXEC) pte_flags |= PTE_X;
+
+    struct file *vf = p->vmas[i].vfile;
+
+    // alloc page
+    void* pa;
+    if ((pa = kalloc()) == 0) {
+        return -1;
+    }
+    memset(pa, 0, PGSIZE);
+
+    ilock(vf->ip);
+    int offset = p->vmas[i].offset + PGROUNDDOWN(va - p->vmas[i].addr);
+    int readbytes = readi(vf->ip, 0, (uint64)pa, offset, PGSIZE);
+    if (readbytes == 0) {
+        iunlock(vf->ip);
+        kfree(pa);
+        return -1;
+    }
+    iunlock(vf->ip);
+
+    if (mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)pa, pte_flags) != 0) {
+        kfree(pa);
+        return -1;
+    }
+
+    return 0;
+}
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -36,51 +86,65 @@ trapinithart(void)
 void
 usertrap(void)
 {
-  int which_dev = 0;
+    int which_dev = 0;
 
-  if((r_sstatus() & SSTATUS_SPP) != 0)
-    panic("usertrap: not from user mode");
+    if((r_sstatus() & SSTATUS_SPP) != 0)
+        panic("usertrap: not from user mode");
 
-  // send interrupts and exceptions to kerneltrap(),
-  // since we're now in the kernel.
-  w_stvec((uint64)kernelvec);
+    // send interrupts and exceptions to kerneltrap(),
+    // since we're now in the kernel.
+    w_stvec((uint64)kernelvec);
 
-  struct proc *p = myproc();
-  
-  // save user program counter.
-  p->trapframe->epc = r_sepc();
-  
-  if(r_scause() == 8){
-    // system call
+    struct proc *p = myproc();
+
+    // save user program counter.
+    p->trapframe->epc = r_sepc();
+
+    uint64 cause = r_scause();
+    if(cause == 8){
+        // system call
+
+        if(p->killed)
+            exit(-1);
+
+        // sepc points to the ecall instruction,
+        // but we want to return to the next instruction.
+        p->trapframe->epc += 4;
+
+        // an interrupt will change sstatus &c registers,
+        // so don't enable until done with those registers.
+        intr_on();
+
+        syscall();
+    } else if((which_dev = devintr()) != 0){
+        // ok
+    } else if(cause == 13 || cause == 15) {
+#ifdef LAB_MMAP
+        uint64 fault_va = r_stval();
+        if (fault_va < p->trapframe->sp || fault_va >= p->sz) {
+            printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+            printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+            p->killed = 1;
+        }
+
+        if (mmap_handler(r_stval()) != 0) {
+            p->killed = 1;
+        }
+#endif
+    } else {
+        printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        p->killed = 1;
+    }
 
     if(p->killed)
-      exit(-1);
+        exit(-1);
 
-    // sepc points to the ecall instruction,
-    // but we want to return to the next instruction.
-    p->trapframe->epc += 4;
+    // give up the CPU if this is a timer interrupt.
+    if(which_dev == 2)
+        yield();
 
-    // an interrupt will change sstatus &c registers,
-    // so don't enable until done with those registers.
-    intr_on();
-
-    syscall();
-  } else if((which_dev = devintr()) != 0){
-    // ok
-  } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    p->killed = 1;
-  }
-
-  if(p->killed)
-    exit(-1);
-
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
-
-  usertrapret();
+    usertrapret();
 }
 
 //
