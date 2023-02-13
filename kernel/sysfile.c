@@ -484,3 +484,105 @@ sys_pipe(void)
   }
   return 0;
 }
+
+
+uint64 sys_mmap(void) {
+    uint64 addr;   // starting virtual address of vma, must be zero
+    int len;    // length of vma, unit: bytes
+    int prot;
+    int flags;
+    int fd;     
+    int offset;    // must be zero
+    struct file* file;
+
+    if(argaddr(0, &addr) < 0 || argint(1, &len) < 0 || argint(2, &prot) < 0 ||
+        argint(3, &flags) < 0 || argfd(4, &fd, &file) < 0 || argint(5, &offset) < 0) {
+        return -1;
+    }
+
+    // before map, need to chect the file permissions.
+    // if this mmaped file will write back, could not with PROT_WRITE and only readable
+    if ((flags == MAP_SHARED) && (prot & PROT_WRITE) != 0 && file->writable == 0) {
+        return -1;
+    }
+
+    // find an unused region in the process's address space(start at p->sz) in which to map the file,
+    // and add a VMA to the process's table of mapped regions. 
+    struct proc *p = myproc();
+    // check size enough 
+    if (p->sz + len > MAXVA) {
+        return -1;
+    }
+
+    int i;
+    for (i = 0; i < NVMA; i ++) {
+        if (p->vmas[i].valid == 0) {
+            p->vmas[i].valid = 1;
+            p->vmas[i].addr = p->sz; // new vma begin at p->sz in this proc
+            p->vmas[i].len = len;
+            p->vmas[i].prot = prot;
+            p->vmas[i].flags = flags;
+            p->vmas[i].fd = fd;     
+            p->vmas[i].offset = offset;
+            p->vmas[i].vfile = file;
+
+            // increase the file's reference count so that the structure doesn't disappear when the file is closed 
+            filedup(file);
+
+            p->sz += len; // update proc's invariant.
+
+            return p->vmas[i].addr;
+        }
+    }
+
+    return -1;
+}
+
+uint64 sys_munmap(void) {
+    uint64 addr;
+    int len;
+
+    if (argaddr(0, &addr) < 0 || argint(1, &len) < 0) {
+        return -1;
+    }
+
+
+    // find the VMA for the address range
+    int i;
+    struct proc *p = myproc();
+    for (i = 0; i < NVMA; i ++) {
+        if (p->vmas[i].valid && p->vmas[i].len >= len) {
+            // begin
+            if (p->vmas[i].addr == addr) {
+                p->vmas[i].addr += len;
+                p->vmas[i].len -= len;
+                break;
+            } 
+            // end
+            if (p->vmas[i].addr + p->vmas[i].len == addr + len) {
+                p->vmas[i].len -= len;
+                break;
+            }
+        }
+    }
+    if (i == NVMA) {
+        return -1;
+    }
+
+    // If an unmapped page has been modified and the file is mapped MAP_SHARED, write the page back to the file.
+    if (p->vmas[i].flags == MAP_SHARED && (p->vmas[i].prot & PROT_WRITE) != 0) {
+        filewrite(p->vmas[i].vfile, addr, len);
+    }
+
+    // unmap the specified pages (hint: use uvmunmap)
+    uvmunmap(p->pagetable, addr, len / PGSIZE, 1);
+
+    // If munmap removes all pages of a previous mmap,
+    // it should decrement the reference count of the corresponding struct file.
+    if (p->vmas[i].len == 0) {
+        fileclose(p->vmas[i].vfile);
+        p->vmas[i].valid = 0;
+    }
+
+    return 0;
+}

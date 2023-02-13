@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -104,44 +105,47 @@ allocpid() {
 static struct proc*
 allocproc(void)
 {
-  struct proc *p;
+    struct proc *p;
 
-  for(p = proc; p < &proc[NPROC]; p++) {
-    acquire(&p->lock);
-    if(p->state == UNUSED) {
-      goto found;
-    } else {
-      release(&p->lock);
+    for(p = proc; p < &proc[NPROC]; p++) {
+        acquire(&p->lock);
+        if(p->state == UNUSED) {
+            goto found;
+        } else {
+            release(&p->lock);
+        }
     }
-  }
-  return 0;
+    return 0;
 
 found:
-  p->pid = allocpid();
-  p->state = USED;
+    p->pid = allocpid();
+    p->state = USED;
 
-  // Allocate a trapframe page.
-  if((p->trapframe = (struct trapframe *)kalloc()) == 0){
-    freeproc(p);
-    release(&p->lock);
-    return 0;
-  }
+    // Allocate a trapframe page.
+    if((p->trapframe = (struct trapframe *)kalloc()) == 0){
+        freeproc(p);
+        release(&p->lock);
+        return 0;
+    }
 
-  // An empty user page table.
-  p->pagetable = proc_pagetable(p);
-  if(p->pagetable == 0){
-    freeproc(p);
-    release(&p->lock);
-    return 0;
-  }
+    // An empty user page table.
+    p->pagetable = proc_pagetable(p);
+    if(p->pagetable == 0){
+        freeproc(p);
+        release(&p->lock);
+        return 0;
+    }
 
-  // Set up new context to start executing at forkret,
-  // which returns to user space.
-  memset(&p->context, 0, sizeof(p->context));
-  p->context.ra = (uint64)forkret;
-  p->context.sp = p->kstack + PGSIZE;
+    // Set up new context to start executing at forkret,
+    // which returns to user space.
+    memset(&p->context, 0, sizeof(p->context));
+    p->context.ra = (uint64)forkret;
+    p->context.sp = p->kstack + PGSIZE;
 
-  return p;
+    // initialize vmas when proc allocating.
+    memset(&p->vmas, 0, sizeof(p->vmas));
+
+    return p;
 }
 
 // free a proc structure and the data hanging from it,
@@ -301,6 +305,13 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
+    for (i = 0; i < NVMA; i ++) {
+        if (p->vmas[i].valid) {
+            memmove(&np->vmas[i], &p->vmas[i], sizeof(p->vmas[i]));
+            filedup(p->vmas[i].vfile);
+        }
+    }
+
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
@@ -339,43 +350,56 @@ reparent(struct proc *p)
 void
 exit(int status)
 {
-  struct proc *p = myproc();
+    struct proc *p = myproc();
 
-  if(p == initproc)
-    panic("init exiting");
+    if(p == initproc)
+        panic("init exiting");
 
-  // Close all open files.
-  for(int fd = 0; fd < NOFILE; fd++){
-    if(p->ofile[fd]){
-      struct file *f = p->ofile[fd];
-      fileclose(f);
-      p->ofile[fd] = 0;
+    // Close all open files.
+    for(int fd = 0; fd < NOFILE; fd++){
+        if(p->ofile[fd]){
+            struct file *f = p->ofile[fd];
+            fileclose(f);
+            p->ofile[fd] = 0;
+        }
     }
-  }
 
-  begin_op();
-  iput(p->cwd);
-  end_op();
-  p->cwd = 0;
+    // unmaps a mapped region of a process
+    int i;
+    for (i = 0; i < NVMA; i ++) {
+        if (p->vmas[i].valid) {
+            if (p->vmas[i].flags == MAP_SHARED) {
+                filewrite(p->vmas[i].vfile, p->vmas[i].addr, p->vmas[i].len);
+            }
+            fileclose(p->vmas[i].vfile);
+            uvmunmap(p->pagetable, p->vmas[i].addr, p->vmas[i].len / PGSIZE, 1);
+            p->vmas[i].valid = 0;
+        }
+    }
 
-  acquire(&wait_lock);
+    begin_op();
+    iput(p->cwd);
+    end_op();
+    p->cwd = 0;
 
-  // Give any children to init.
-  reparent(p);
+    acquire(&wait_lock);
 
-  // Parent might be sleeping in wait().
-  wakeup(p->parent);
-  
-  acquire(&p->lock);
+    // Give any children to init.
+    reparent(p);
 
-  p->xstate = status;
-  p->state = ZOMBIE;
+    // Parent might be sleeping in wait().
+    wakeup(p->parent);
 
-  release(&wait_lock);
+    acquire(&p->lock);
 
-  // Jump into the scheduler, never to return.
-  sched();
-  panic("zombie exit");
+    p->xstate = status;
+    p->state = ZOMBIE;
+
+    release(&wait_lock);
+
+    // Jump into the scheduler, never to return.
+    sched();
+    panic("zombie exit");
 }
 
 // Wait for a child process to exit and return its pid.
