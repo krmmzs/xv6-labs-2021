@@ -62,6 +62,8 @@ int mmap_handler(int va) {
     memset(pa, 0, PGSIZE);
 
     ilock(vf->ip);
+    // draw pic will have help.
+    // inode's off = file off(start point) + (fault_va - va start)
     int offset = p->vmas[i].offset + PGROUNDDOWN(va - p->vmas[i].addr);
     int readbytes = readi(vf->ip, 0, (uint64)pa, offset, PGSIZE);
     if (readbytes == 0) {

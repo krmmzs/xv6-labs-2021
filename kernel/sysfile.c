@@ -551,9 +551,10 @@ uint64 sys_munmap(void) {
     int i;
     struct proc *p = myproc();
     for (i = 0; i < NVMA; i ++) {
+        // Start checking both endpoints after meeting the basic criteria (length)
         if (p->vmas[i].valid && p->vmas[i].len >= len) {
             // begin
-            if (p->vmas[i].addr == addr) {
+            if (p->vmas[i].addr + p->vmas[i].offset == addr) {
                 p->vmas[i].addr += len;
                 p->vmas[i].len -= len;
                 break;
