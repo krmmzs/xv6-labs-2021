@@ -143,7 +143,7 @@ found:
     p->context.sp = p->kstack + PGSIZE;
 
     // initialize vmas when proc allocating.
-    memset(&p->vmas, 0, sizeof(p->vmas));
+    memset(p->vmas, 0, sizeof(p->vmas));
 
     return p;
 }
