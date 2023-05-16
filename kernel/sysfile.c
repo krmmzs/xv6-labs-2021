@@ -533,7 +533,7 @@ uint64 sys_symlink(void) {
         return -1;
     }
 
-    // Write the target path to the inode data block
+    // Write the target to the inode data block
     if (writei(ip, 0, (uint64)target, 0, MAXPATH) < MAXPATH) {
         iunlockput(ip); // need to unlock after read and write, need tu iput to dereference inode
         end_op();
